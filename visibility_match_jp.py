@@ -1,7 +1,7 @@
 bl_info = {
-    "name" : "zukii ni add-on",
+    "name" : "Visibility match",
     "author" : "kurol0", 
-    "description" : "zukii ni no add-on",
+    "description" : "This is an add-on in the prototype stage",
     "blender" : (4,2,0),
     "version" : (1,0,0),
     "location" : "",
@@ -246,11 +246,12 @@ class VIEW3D_OT_condition_match(bpy.types.Operator):
         tgt_coll = cm_props.target_collection
         contain = not cm_props.without_children
         apply_excludes = cm_props.apply_excludes_from_view_layer
+        sel_obj = cm_props.only_selected_objects
         flip_state_value = cm_props.flip_state_value
         
         self.cm = CM(
-        ref_state, tgt_state, pattern, apply_excludes_from_view_layer=apply_excludes ,
-         contain_child_collections=contain, target_collection=tgt_coll, flip_state_value=flip_state_value
+        ref_state, tgt_state, pattern, apply_excludes_from_view_layer=apply_excludes, contain_child_collections = contain, 
+        target_collection = tgt_coll, only_selected_objects = sel_obj, flip_state_value = flip_state_value
         )
         error_message = self.cm.get_error
         # エラーメッセージのチェック
@@ -278,13 +279,17 @@ class CM:
     pattern_map = {"obj_cm", "coll_cm", "coll_obj_cm"}
     error_message = ""
 
-    def __init__(self, ref_state, tgt_state, pattern, *,apply_excludes_from_view_layer = False, contain_child_collections = False, target_collection = None, flip_state_value = False):
+    def __init__(
+    self, ref_state, tgt_state, pattern, *,apply_excludes_from_view_layer = False, contain_child_collections = False,
+    target_collection = None, only_selected_objects = False, flip_state_value = False
+    ):
         self.ref_state = ref_state
         self.tgt_state = tgt_state
         self.pattern = pattern
         self.apply_excludes_from_view_layer = apply_excludes_from_view_layer
         self.contain_child_collections = contain_child_collections
         self.target_collection = target_collection
+        self.only_selected_objects = only_selected_objects
         self.flip_state_value = flip_state_value
         self.ref_type = None
         self.tgt_type = None 
@@ -377,6 +382,16 @@ class CM:
         if value not in CM.pattern_map:
             self.error_message = "ValueError: The string that can be used in pattern is: {}.".format(', '.join(f"'{item}'" for item in CM.pattern_map))
         self.__pattern = value
+
+    @property
+    def only_selected_objects(self):
+       return self.__only_selected_objects
+
+    @only_selected_objects.setter
+    def only_selected_objects(self, value):
+        if not isinstance(value, bool):
+            self.error_message = ("ValueError: only_selected_objects must be a boolean value.")
+        self.__only_selected_objects = value
         
     @property
     def flip_state_value(self):
@@ -576,6 +591,7 @@ class CM:
                     raise ValueError("Not the corresponding ref_state")
                  
                 if tgt_state:
+                    print(tgt_state)
                     if flip_state_value:
                         new_value = not new_value
                     if ref_type in {"Scene", "OTHER"} and tgt_type == "ViewLayer" and bpy_type == "layer_collection":
@@ -615,12 +631,19 @@ class CM:
         pattern = self.pattern
         target_collection = self.target_collection
         contain_child_collections = self.contain_child_collections
+        only_selected_objects = self.only_selected_objects
         coll = self.select_collection()
         layer_coll = bpy.context.view_layer.layer_collection
         
         #メソッド関数
         get_child_coll = self.get_child_coll
         process_object = self.process_object
+        
+        def get_process_object(collection, sel_obj=None):
+            objects = collection.collection.objects if type == "lyaer_coll" else collection.objects
+            for obj in objects:
+                if sel_obj is None or obj in sel_obj:
+                    process_object(obj)
         
         if ref_type == "ViewLayer" or ref_type in {"Scene", "OTHER"} and (tgt_type == "ViewLayer" or tgt_type == "Scene" and apply_excludes):   
              type = "lyaer_coll"
@@ -629,68 +652,61 @@ class CM:
             type = "scene_coll"
             
         else:
-            raise ValueError("There is an anomaly in ref_type and tgt_type.")           
-             
-        elif pattern == "obj_cm":  
+            raise ValueError("There is an anomaly in ref_type and tgt_type.")
+            
+        if only_selected_objects:
+            print("ACTIVE")
+            sel_obj = bpy.context.selected_objects
             if target_collection and not contain_child_collections:
-                if type == "lyaer_coll":
-                    coll = get_child_coll(layer_coll, target_coll=target_collection)
-                    if not coll.exclude:
-                        for obj in coll.collection.objects:
-                            process_object(obj)
-                    else:
-                        raise ValueError("None collection")
+                coll = get_child_coll(layer_coll, target_coll=target_collection) if type == "lyaer_coll" else bpy.data.collections[target_collection.name]
+                if not coll.exclude:
+                    get_process_object(coll, sel_obj=sel_obj)
                 else:
-                    for obj in bpy.data.collections[target_collection.name].objects:
-                        process_object(obj)  
+                    raise ValueError("None collection")
             else:
                 for collection in coll:                      
-                    if type == "lyaer_coll":
-                        for obj in collection.collection.objects:
-                            process_object(obj)  
-                    else: 
-                        for obj in collection.objects:
-                            process_object(obj)
+                    get_process_object(collection, sel_obj=sel_obj)             
+             
+        elif pattern == "obj_cm":
+            print("オブジェクト")     
+            if target_collection and not contain_child_collections:
+                coll = get_child_coll(layer_coll, target_coll=target_collection) if type == "lyaer_coll" else bpy.data.collections[target_collection.name]
+                if not coll.exclude:
+                    get_process_object(coll)
+                else:
+                    raise ValueError("None collection")
+
+            else:
+                for collection in coll:                      
+                    get_process_object(collection)
                             
         elif pattern == "coll_cm":
+            print("コレクション")
             if target_collection and not contain_child_collections:
-                if type == "lyaer_coll":
-                    coll = get_child_coll(layer_coll, target_coll=target_collection)
-                    if not coll.exclude:
-                        process_object(coll)
-                    else:
-                        raise ValueError("None collection")
+                coll = get_child_coll(layer_coll, target_coll=target_collection) if type == "lyaer_coll" else bpy.data.collections[target_collection.name]
+                if not coll.exclude:
+                    process_object(coll)
                 else:
-                    process_object(bpy.data.collections[target_collection.name])
+                    raise ValueError("None collection")
             else:
                 for collection in coll:
                     process_object(collection)
                 
         elif pattern == "coll_obj_cm":
+            print("コレクションとオブジェクト")
             if target_collection and not contain_child_collections:
-                if type == "lyaer_coll":
-                    coll = get_child_coll(layer_coll, target_coll=target_collection)
-                    if not coll.exclude:
-                        process_object(coll)
-                        for obj in coll.collection.objects:
-                            process_object(obj)
-                    else:
-                        raise ValueError("None collection")
+                coll = get_child_coll(layer_coll, target_coll=target_collection) if type == "lyaer_coll" else bpy.data.collections[target_collection.name]
+                if not coll.exclude:
+                    process_object(coll)
+                    get_process_object(coll)
                 else:
-                    process_object(bpy.data.collections[target_collection.name])
-                    for obj in bpy.data.collections[target_collection.name].objects:
-                        process_object(obj)                      
+                    raise ValueError("None collection")                     
             else:
                 for collection in coll:
                     process_object(collection)
-                    if type == "lyaer_coll":
-                        for obj in collection.collection.objects:
-                            process_object(obj)  
-                    else: 
-                        for obj in collection.objects:
-                            process_object(obj)                         
+                    get_process_object(collection)                       
         else:
-                print("Error: Invalid pattern")  
+                raise ValueError("Invalid pattern")  
          
 
 #type=CM_Props
