@@ -576,7 +576,6 @@ class CM:
                     raise ValueError("Not the corresponding ref_state")
                  
                 if tgt_state:
-                    print(tgt_state)
                     if flip_state_value:
                         new_value = not new_value
                     if ref_type in {"Scene", "OTHER"} and tgt_type == "ViewLayer" and bpy_type == "layer_collection":
@@ -630,15 +629,9 @@ class CM:
             type = "scene_coll"
             
         else:
-            raise ValueError("There is an anomaly in ref_type and tgt_type.")
-            
-        if ref_state == "ACTIVE":
-            print("オブジェクト")
-            for obj in bpy.context.selected_objects:
-                process_object(obj)              
+            raise ValueError("There is an anomaly in ref_type and tgt_type.")           
              
-        elif pattern == "obj_cm":
-            print("オブジェクト")     
+        elif pattern == "obj_cm":  
             if target_collection and not contain_child_collections:
                 if type == "lyaer_coll":
                     coll = get_child_coll(layer_coll, target_coll=target_collection)
@@ -660,7 +653,6 @@ class CM:
                             process_object(obj)
                             
         elif pattern == "coll_cm":
-            print("コレクション")
             if target_collection and not contain_child_collections:
                 if type == "lyaer_coll":
                     coll = get_child_coll(layer_coll, target_coll=target_collection)
@@ -675,7 +667,6 @@ class CM:
                     process_object(collection)
                 
         elif pattern == "coll_obj_cm":
-            print("コレクションとオブジェクト")
             if target_collection and not contain_child_collections:
                 if type == "lyaer_coll":
                     coll = get_child_coll(layer_coll, target_coll=target_collection)
