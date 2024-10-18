@@ -217,12 +217,16 @@ class VIEW3D_OT_swap_states(bpy.types.Operator):
         cm_props = context.window_manager.cm_props
         ref_state = cm_props.reference
         tgt_state = cm_props.target
+        flip_state_value = cm_props.flip_state_value
         def_ref = preferences.default_reference
         def_tgt = preferences.default_target
-
-        # swap refernce state and target state
-        cm_props.reference = tgt_state if tgt_state in [item[0] for item in reference_items] else def_ref
-        cm_props.target = ref_state if ref_state in [item[0] for item in target_items] else def_tgt
+        
+        if ref_state == tgt_state:
+            cm_props.flip_state_value = not flip_state_value
+        else:
+            # swap refernce state and target state
+            cm_props.reference = tgt_state if tgt_state in [item[0] for item in reference_items] else def_ref
+            cm_props.target = ref_state if ref_state in [item[0] for item in target_items] else def_tgt
         
         return {"FINISHED"}
 
@@ -591,7 +595,6 @@ class CM:
                     raise ValueError("Not the corresponding ref_state")
                  
                 if tgt_state:
-                    print(tgt_state)
                     if flip_state_value:
                         new_value = not new_value
                     if ref_type in {"Scene", "OTHER"} and tgt_type == "ViewLayer" and bpy_type == "layer_collection":
@@ -655,7 +658,6 @@ class CM:
             raise ValueError("There is an anomaly in ref_type and tgt_type.")
             
         if only_selected_objects:
-            print("ACTIVE")
             sel_obj = bpy.context.selected_objects
             if target_collection and not contain_child_collections:
                 coll = get_child_coll(layer_coll, target_coll=target_collection) if type == "lyaer_coll" else bpy.data.collections[target_collection.name]
@@ -667,8 +669,7 @@ class CM:
                 for collection in coll:                      
                     get_process_object(collection, sel_obj=sel_obj)             
              
-        elif pattern == "obj_cm":
-            print("オブジェクト")     
+        elif pattern == "obj_cm":   
             if target_collection and not contain_child_collections:
                 coll = get_child_coll(layer_coll, target_coll=target_collection) if type == "lyaer_coll" else bpy.data.collections[target_collection.name]
                 if not coll.exclude:
@@ -681,7 +682,6 @@ class CM:
                     get_process_object(collection)
                             
         elif pattern == "coll_cm":
-            print("コレクション")
             if target_collection and not contain_child_collections:
                 coll = get_child_coll(layer_coll, target_coll=target_collection) if type == "lyaer_coll" else bpy.data.collections[target_collection.name]
                 if not coll.exclude:
